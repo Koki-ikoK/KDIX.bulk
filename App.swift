@@ -1,9 +1,3 @@
-//
-//  app.swift
-//  KDIX.bulk
-//
-//  Created by Koki Iwaki on 2026/04/05.
-//
 
 import SwiftUI
 import SwiftData

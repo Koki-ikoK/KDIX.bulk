@@ -1,9 +1,3 @@
-//
-//  SpeechManeger.swift
-//  KDIX.bulk
-//
-//  Created by Koki Iwaki on 2026/04/10.
-//
 
 import Foundation
 import AVFoundation

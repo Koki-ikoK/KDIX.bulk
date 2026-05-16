@@ -129,7 +129,7 @@ struct ContentView: View {
                     VStack(spacing: 0) {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("SYSTEM ID: IWAKI").font(.footnote.weight(.bold)).foregroundColor(.gray)
+                                Text("SYSTEM ID: GUEST").font(.footnote.weight(.bold)).foregroundColor(.gray)
                                 Text("Garage").font(.system(.largeTitle, design: .rounded).weight(.heavy)).foregroundColor(.white)
                             }
                             Spacer()

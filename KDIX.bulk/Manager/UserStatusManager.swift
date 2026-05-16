@@ -1,9 +1,3 @@
-//
-//  UserStatusManager.swift
-//  KDIX.bulk
-//
-//  Created by Koki Iwaki on 2026/05/15.
-//
 
 import SwiftUI
 import Combine
