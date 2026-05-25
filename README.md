@@ -4,7 +4,7 @@
 
 単なる数字の記録に留まらず、レーシングマシンのような高揚感と、コミュニティとの繋がりを提供します。
 
-## 📸 Key Features
+## Key Features
 
 ### 1. Real-time Nitro System
 仲間のワークアウト中にリアルタイムで「ニトロ（応援）」を送り合うことができます。通知と音の演出により、トレーニング中の孤独感を払拭し、モチベーションを劇的に向上させます。
@@ -20,7 +20,7 @@
 - **Firebase Sync**: 匿名認証を用いたセキュアなリアルタイム同期。
 - **AVFoundation**: エンジン音のSE再生やカスタムカメラ制御による没入感のある体験。
 
-## 🛠 Tech Stack
+## Tech Stack
 
 | Category | Technology |
 | :--- | :--- |
@@ -31,7 +31,7 @@
 | **Media** | AVFoundation, ImageRenderer |
 | **Architecture** | MVVM + Feature-based Directory Structure |
 
-## ⚙️ Setup (Important)
+## Setup (Important)
 
 本プロジェクトは、セキュリティ保護のためFirebaseの設定ファイル（`GoogleService-Info.plist`）をリポジトリに含めていません。
 
