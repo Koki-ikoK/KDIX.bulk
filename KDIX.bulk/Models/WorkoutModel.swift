@@ -47,13 +47,15 @@ class WorkoutLog {
     var date: Date = Date()
     var dayTitle: String = ""
     var themeColor: String = "blue"
+    var ownerName: String = "GUEST" // 💥 追加：誰のデータかを判別
     @Relationship(deleteRule: .cascade) var exercises: [ExerciseLog] = []
     var totalSeconds: Int = 0
     
-    init(dayTitle: String, totalSeconds: Int, themeColor: String = "blue") {
+    init(dayTitle: String, totalSeconds: Int, themeColor: String = "blue", ownerName: String = "GUEST") {
         self.dayTitle = dayTitle
         self.totalSeconds = totalSeconds
         self.themeColor = themeColor
+        self.ownerName = ownerName
         self.date = Date()
     }
     
@@ -68,8 +70,16 @@ class WorkoutLog {
     var id: UUID = UUID()
     var title: String
     var themeColor: String
+    var ownerName: String = "GUEST" // 💥 追加：誰のメニューか
+    var isPublic: Bool = false // 💥 追加：公開設定
+    
     @Relationship(deleteRule: .cascade) var exercises: [RoutineExercise] = []
-    init(title: String, themeColor: String) { self.title = title; self.themeColor = themeColor }
+    init(title: String, themeColor: String, ownerName: String = "GUEST", isPublic: Bool = false) {
+        self.title = title
+        self.themeColor = themeColor
+        self.ownerName = ownerName
+        self.isPublic = isPublic
+    }
 }
 
 @Model class RoutineExercise {

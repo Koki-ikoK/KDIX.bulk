@@ -8,12 +8,10 @@ class ShiftSoundManager {
     
     // 💥 解決策：全てのプレイヤーをこの辞書に叩き込み、メモリから消えるのを物理的に防ぐ
     private var allPlayers: [String: AVAudioPlayer] = [:]
+    private var extraRevPlayer: AVAudioPlayer? // 💥 追加：音量2倍用（オーバーレイ）
     
     private init() {
-        // メインスレッドのフリーズを防ぐ
-        DispatchQueue.global(qos: .userInteractive).async {
-            self.loadAllSounds()
-        }
+        self.loadAllSounds()
     }
     
     private func loadAllSounds() {
@@ -26,8 +24,14 @@ class ShiftSoundManager {
                     player.prepareToPlay()
                     if file == "engine_base" { player.enableRate = true }
                     
-                    // 💥 ここで辞書に保存！これで「deallocated」されることは100%ありません
                     self.allPlayers[file] = player
+                    
+                    // 💥 改善：音量を1.0の「2倍」にするため、もう一つ全く同じプレイヤーを作って重ねる
+                    if file == "rev_match" {
+                        extraRevPlayer = try AVAudioPlayer(contentsOf: url)
+                        extraRevPlayer?.prepareToPlay()
+                    }
+                    
                     print("🔊 Loaded: \(file)")
                 } catch {
                     print("⚠️ Load failed: \(file)")
@@ -36,16 +40,34 @@ class ShiftSoundManager {
         }
         
         // オーディオセッションの設定
-        try? AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default, options: .mixWithOthers)
+        // 💥 修正：.playback + .mixWithOthers に統一し、他アプリの音を止めないようにする
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
         try? AVAudioSession.sharedInstance().setActive(true)
     }
     
-    // MARK: - シフトアップ（加速）
+    // MARK: - シフト操作開始（ストゥトゥトゥ！）
+    func playShiftDragStart() {
+        if AppSettings.shared.isShiftSoundEnabled {
+            if let revPlayer = allPlayers["rev_match"] {
+                revPlayer.currentTime = 0
+                revPlayer.volume = 1.0
+                revPlayer.play()
+                
+                // 💥 音量を倍増させる魔法
+                extraRevPlayer?.currentTime = 0
+                extraRevPlayer?.volume = 1.0
+                extraRevPlayer?.play()
+            }
+        }
+    }
+    
+    // MARK: - シフトアップ完了（ガコンッ → ブォォン！）
     func playShiftUpSequence(gear: Int) {
         // 💥 シフト音の設定をチェック
         if AppSettings.shared.isShiftSoundEnabled {
             if let shiftPlayer = allPlayers["shift_up"] {
                 shiftPlayer.currentTime = 0
+                shiftPlayer.volume = 1.0
                 shiftPlayer.play()
             }
         }
@@ -53,10 +75,14 @@ class ShiftSoundManager {
         // 💥 エンジン音の設定をチェック
         if AppSettings.shared.isEngineSoundEnabled {
             if let enginePlayer = allPlayers["engine_base"] {
-                let targetRate = 0.8 + (Float(gear - 1) * 0.2)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                let targetRate = 1.0 + (Float(gear) * 0.15) // N(0) -> 1速の時に gear=1 なので 1.15 になる
+                
+                // 💥 改善：shift_upの音（ガコンッ）が終わった直後にエンジンを鳴らす
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                     enginePlayer.stop()
-                    enginePlayer.currentTime = 0
+                    // engine_base.mp3 は頭が静かなので、0.5秒付近から再生して確実にブォォンと鳴らす
+                    enginePlayer.currentTime = 0.5 
+                    enginePlayer.volume = 1.0 // 確実に音量をMAXに
                     enginePlayer.rate = min(targetRate, 2.0)
                     enginePlayer.play()
                 }
@@ -71,20 +97,27 @@ class ShiftSoundManager {
             if let downPlayer = allPlayers["shift_down"],
                let revPlayer = allPlayers["rev_match"] {
                 downPlayer.currentTime = 0
+                downPlayer.volume = 1.0
                 downPlayer.play()
                 
                 revPlayer.currentTime = 0
+                revPlayer.volume = 1.0
                 revPlayer.play()
+                
+                extraRevPlayer?.currentTime = 0
+                extraRevPlayer?.volume = 1.0
+                extraRevPlayer?.play()
             }
         }
         
         // 💥 エンジン音の設定をチェック
         if AppSettings.shared.isEngineSoundEnabled {
             if let enginePlayer = allPlayers["engine_base"] {
-                let targetRate = 0.8 + (Float(gear - 1) * 0.2)
+                let targetRate = 1.0 + (Float(gear) * 0.15)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     enginePlayer.stop()
-                    enginePlayer.currentTime = 0
+                    enginePlayer.currentTime = 0.5
+                    enginePlayer.volume = 1.0
                     enginePlayer.rate = min(targetRate + 0.3, 2.0)
                     enginePlayer.play()
                 }

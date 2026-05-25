@@ -10,7 +10,8 @@ class SoundManager {
     
     init() {
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            // 💥 修正：.mixWithOthers を追加して Spotify などのバックグラウンド再生を止めないようにする
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers, .duckOthers])
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
             print("🚨 オーディオセッションの設定に失敗しました")

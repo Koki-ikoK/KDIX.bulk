@@ -1,7 +1,12 @@
 import UserNotifications
 
-class NotificationManager {
-    static let shared = NotificationManager() // シングルトン（どこからでも呼べるようにする）
+class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = NotificationManager()
+    
+    override init() {
+        super.init()
+        UNUserNotificationCenter.current().delegate = self
+    }
     
     // 1. ユーザーに通知の許可を求める
     func requestAuthorization() {
@@ -18,13 +23,18 @@ class NotificationManager {
         }
     }
     
-    // 2. 火・木・金の通知をセットする
+    // 2. フォアグラウンドでも通知を表示するためのデリゲートメソッド
+    func userNotificationCenter(_ center: UNUserNotificationCenter, 
+                                willPresent notification: UNNotification, 
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        // フォアグラウンドでもバナー、音、バッジを許可する
+        completionHandler([.banner, .sound, .badge])
+    }
+    
+    // 3. 火・木・金の通知をセットする
     func scheduleNotifications() {
-        // 古い通知設定が重複しないように一度クリア
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
         
-        // 日: 1, 月: 2, 火: 3, 水: 4, 木: 5, 金: 6, 土: 7
-        // 火(3), 木(5), 金(6) に設定
         let scheduleDays = [
             (weekday: 3, title: "Day 1 起動推奨", body: "今日は火曜日。胸・肩前部・三頭を追い込む日です🔥"),
             (weekday: 5, title: "Day 2 起動推奨", body: "今日は木曜日。背中・二頭をバチバチにする日です🔥"),
@@ -35,26 +45,40 @@ class NotificationManager {
             let content = UNMutableNotificationContent()
             content.title = schedule.title
             content.body = schedule.body
-            content.sound = .default // デフォルトの通知音
+            content.sound = .default
             
-            // 毎週指定曜日の「夕方18時00分」に通知する設定
             var dateComponents = DateComponents()
             dateComponents.weekday = schedule.weekday
-            dateComponents.hour = 18   // 好きな時間に変更してください（例: 18時）
+            dateComponents.hour = 18
             dateComponents.minute = 0
             
             let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
-            
             let request = UNNotificationRequest(
                 identifier: "WorkoutNotification_\(schedule.weekday)",
                 content: content,
                 trigger: trigger
             )
             
-            UNUserNotificationCenter.current().add(request) { error in
-                if let error = error {
-                    print("通知のスケジュール設定に失敗しました: \(error.localizedDescription)")
-                }
+            UNUserNotificationCenter.current().add(request)
+        }
+    }
+    
+    // 💥 追加：ニトロ受信時の即時通知
+    func showNitroAlert(from sender: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "⚡️ NITRO RECEIVED!"
+        content.body = "\(sender) からニトロを受け取りました！"
+        content.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: "shift_up.mp3"))
+        
+        let request = UNNotificationRequest(
+            identifier: "Nitro_\(UUID().uuidString)",
+            content: content,
+            trigger: nil // 即時
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ 通知の送信失敗: \(error)")
             }
         }
     }

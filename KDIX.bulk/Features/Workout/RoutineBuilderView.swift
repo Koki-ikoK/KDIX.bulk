@@ -3,21 +3,10 @@ import SwiftData
 import UniformTypeIdentifiers
 import AudioToolbox
 
-// MARK: - 1. データモデル
-struct DraftPart: Identifiable, Equatable {
-    let id = UUID()
-    var name: String
-    var equipment: String
-    var weight: Double
-    var reps: Int
-    var sets: Int
-    var isExpanded: Bool = false
-}
-
 // MARK: - 2. ドラッグ＆ドロップ Delegate
 struct PartDropDelegate: DropDelegate {
-    let item: DraftPart
-    @Binding var listData: [DraftPart]
+    let item: DraftExercise
+    @Binding var listData: [DraftExercise]
     @Binding var draggedID: UUID?
 
     func performDrop(info: DropInfo) -> Bool {
@@ -108,36 +97,6 @@ struct MotherboardCanvasView: View {
     }
 }
 
-// MARK: - 5. カーボンファイバー背景 (超軽量Canvas)
-struct CarbonFiberCanvasView: View {
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 1000)) { _ in
-            Canvas { context, size in
-                let tileSize: CGFloat = 10
-                let rows = Int(size.height / tileSize) + 1
-                let cols = Int(size.width / tileSize) + 1
-                
-                for r in 0..<rows {
-                    for c in 0..<cols {
-                        let x = CGFloat(c) * tileSize
-                        let y = CGFloat(r) * tileSize
-                        let isAlt = (r + c) % 2 == 0
-                        
-                        let rect = CGRect(x: x, y: y, width: tileSize, height: tileSize)
-                        context.fill(Path(rect), with: .color(isAlt ? Color(white: 0.08) : Color(white: 0.12)))
-                        
-                        var path = Path()
-                        path.move(to: CGPoint(x: x, y: y))
-                        path.addLine(to: CGPoint(x: x + tileSize, y: y + tileSize))
-                        context.stroke(path, with: .color(Color.black.opacity(0.3)), lineWidth: 1)
-                    }
-                }
-            }
-        }
-        .drawingGroup()
-    }
-}
-
 // MARK: - 6. メインView
 struct RoutineBuilderView: View {
     @Environment(\.modelContext) private var context
@@ -147,7 +106,10 @@ struct RoutineBuilderView: View {
     
     @State private var routineName: String = ""
     @State private var selectedColor: String = "cyan"
-    @State private var partsList: [DraftPart] = []
+    @State private var isPublic: Bool = false // 💥 追加
+    @State private var partsList: [DraftExercise] = []
+    
+    @AppStorage("driverName") private var myDriverName = "GUEST" // 💥 追加
     
     @State private var isShowingPartSelector = false
     @State private var selectedFilter: MuscleGroup = .chest
@@ -184,6 +146,7 @@ struct RoutineBuilderView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 32) {
                         buildNameSection
+                        visibilitySection // 💥 追加
                         neonAccentSection
                         partsListSection
                     }
@@ -197,11 +160,18 @@ struct RoutineBuilderView: View {
         }
         .onDrop(of: [UTType.plainText], isTargeted: nil) { _ in draggedID = nil; return true }
         .sheet(isPresented: $isShowingPartSelector) {
-            partsCatalogSheet
+            ExerciseSelectionView(selectedExercises: $partsList, activeNeonColor: activeNeonColor)
         }
         .onAppear {
             if let routine = routineToEdit {
                 routineName = routine.title; selectedColor = routine.themeColor
+                isPublic = routine.isPublic // 💥 追加
+                // 既存の種目をDraftExerciseに変換してロード
+                partsList = routine.exercises.sorted(by: { $0.orderIndex < $1.orderIndex }).map { ex in
+                    let master = allMasterExercises.first(where: { $0.name == ex.name }) ?? 
+                                ExerciseMaster(name: ex.name, target: MuscleGroup(rawValue: ex.target) ?? .core, equipment: Equipment(rawValue: ex.equipment) ?? .other, defaultWeight: ex.baseWeight, defaultReps: ex.baseReps)
+                    return DraftExercise(master: master, weight: ex.baseWeight, reps: ex.baseReps, sets: ex.sets)
+                }
             }
             withAnimation(.easeOut(duration: 2.0).repeatForever(autoreverses: false)) { isPulsing = true }
         }
@@ -284,9 +254,9 @@ struct RoutineBuilderView: View {
         }
     }
     
-    private func partRowView(for part: DraftPart) -> some View {
+    private func partRowView(for part: DraftExercise) -> some View {
         let index = partsList.firstIndex(where: { $0.id == part.id }) ?? 0
-        let partBinding = Binding<DraftPart>(
+        let partBinding = Binding<DraftExercise>(
             get: { index < partsList.count ? partsList[index] : part },
             set: { if index < partsList.count { partsList[index] = $0 } }
         )
@@ -295,7 +265,7 @@ struct RoutineBuilderView: View {
             HStack(spacing: 16) {
                 Text("\(index + 1)").font(.system(size: 14, weight: .black, design: .monospaced)).foregroundColor(.gray).frame(width: 24)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(partBinding.wrappedValue.name).font(.system(.body, design: .rounded).weight(.bold)).foregroundColor(.white).lineLimit(1)
+                    Text(partBinding.wrappedValue.master.name).font(.system(.body, design: .rounded).weight(.bold)).foregroundColor(.white).lineLimit(1)
                     if !partBinding.wrappedValue.isExpanded {
                         HStack(spacing: 0) {
                             dashboardValue(value: String(format: "%.1f", partBinding.wrappedValue.weight), unit: "kg")
@@ -341,113 +311,8 @@ struct RoutineBuilderView: View {
         .overlay( HStack { Rectangle().fill(activeNeonColor).frame(width: 4); Spacer() } )
     }
     
-    // MARK: - カタログ（シート）
-        private var partsCatalogSheet: some View {
-            NavigationStack {
-                ZStack(alignment: .top) {
-                    Color(red: 0.05, green: 0.05, blue: 0.05).ignoresSafeArea()
-                    VStack(spacing: 0) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "magnifyingglass").foregroundColor(searchText.isEmpty ? .gray : activeNeonColor).font(.title3)
-                            TextField("SEARCH PARTS...", text: $searchText).font(.system(.headline, design: .monospaced)).foregroundColor(.white).autocorrectionDisabled()
-                            if !searchText.isEmpty { Button(action: { withAnimation { searchText = "" } }) { Image(systemName: "xmark.circle.fill").foregroundColor(.gray) } }
-                        }
-                        .padding().background(Color(red: 0.15, green: 0.15, blue: 0.15)).clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(searchText.isEmpty ? Color.clear : activeNeonColor, lineWidth: 2))
-                        .padding(.horizontal, 20).padding(.vertical, 16).background(Color(red: 0.1, green: 0.1, blue: 0.1))
-                        
-                        if searchText.isEmpty {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    ForEach(MuscleGroup.allCases) { group in
-                                        Button { withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { selectedFilter = group }
-                                        } label: {
-                                            Text(group.rawValue).font(.system(size: 14, weight: .bold, design: .rounded)).foregroundColor(selectedFilter == group ? .black : .gray)
-                                                .padding(.horizontal, 16).padding(.vertical, 10).background(selectedFilter == group ? activeNeonColor : Color(red: 0.15, green: 0.15, blue: 0.15)).clipShape(Capsule())
-                                        }
-                                    }
-                                }.padding(.horizontal, 20).padding(.bottom, 12)
-                            }.background(Color(red: 0.1, green: 0.1, blue: 0.1))
-                        }
-                        
-                        ScrollView {
-                            VStack(spacing: 12.0) {
-                                let filteredExercises = searchText.isEmpty
-                                    ? allMasterExercises.filter { $0.target == selectedFilter }
-                                    : allMasterExercises.filter { $0.name.localizedStandardContains(searchText) }
-                                
-                                if filteredExercises.isEmpty && !searchText.isEmpty {
-                                    customPartCreatorPanel
-                                } else {
-                                    ForEach(filteredExercises) { exercise in
-                                        let orderIndex = partsList.firstIndex(where: { $0.name == exercise.name })
-                                        let isSelected = orderIndex != nil
-                                        Button { withAnimation {
-                                            if let idx = orderIndex {
-                                                _ = partsList.remove(at: idx)
-                                            } else {
-                                                // 👇 修正：insert(at: 0) をやめて append に変更！
-                                                partsList.append(DraftPart(name: exercise.name, equipment: exercise.equipment.rawValue, weight: exercise.defaultWeight, reps: exercise.defaultReps, sets: 3))
-                                            }
-                                        }} label: {
-                                            HStack {
-                                                VStack(alignment: .leading, spacing: 4) {
-                                                    Text(exercise.name).font(.system(.headline, design: .rounded).weight(.bold)).foregroundColor(.white)
-                                                    Text(exercise.equipment.rawValue).font(.caption.weight(.bold)).foregroundColor(.gray)
-                                                }
-                                                Spacer()
-                                                if let idx = orderIndex { Text("NO.\(idx + 1)").font(.system(.headline, design: .monospaced).weight(.black)).foregroundColor(activeNeonColor) }
-                                                else { Image(systemName: "plus.circle.fill").foregroundColor(.gray.opacity(0.3)).font(.title2) }
-                                            }
-                                            .padding().background(isSelected ? activeNeonColor.opacity(0.1) : Color(red: 0.15, green: 0.15, blue: 0.15)).clipShape(RoundedRectangle(cornerRadius: 12))
-                                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(isSelected ? activeNeonColor : Color.clear, lineWidth: 2))
-                                        }
-                                    }
-                                }
-                            }.padding(20).padding(.bottom, 40)
-                        }
-                    }
-                }
-                .navigationTitle("PARTS CATALOG").navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("CLOSE") { isShowingPartSelector = false }.foregroundColor(activeNeonColor) } }
-                .toolbarColorScheme(.dark, for: .navigationBar)
-            }
-        }
-        
-        // MARK: - カスタム種目作成パネル
-        private var customPartCreatorPanel: some View {
-            VStack(spacing: 16) {
-                HStack {
-                    Image(systemName: "wrench.and.screwdriver.fill").foregroundColor(.yellow)
-                    Text("CREATE CUSTOM PART").font(.system(.caption, design: .monospaced).weight(.bold)).foregroundColor(.yellow)
-                    Spacer()
-                }
-                Text(searchText).font(.system(.headline, design: .rounded).weight(.black)).foregroundColor(.white).frame(maxWidth: .infinity, alignment: .leading)
-                HStack {
-                    Text("EQUIPMENT").font(.system(size: 10, weight: .bold)).foregroundColor(.gray)
-                    Spacer()
-                    Menu {
-                        ForEach(equipmentOptions, id: \.self) { eq in Button(eq) { selectedCustomEquipment = eq } }
-                    } label: {
-                        HStack {
-                            Text(selectedCustomEquipment).font(.subheadline.bold()).foregroundColor(.white)
-                            Image(systemName: "chevron.up.chevron.down").font(.caption).foregroundColor(.yellow)
-                        }.padding(8).background(Color.white.opacity(0.1)).clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                }
-                Button { withAnimation {
-                    // 👇 修正：こちらも insert(at: 0) をやめて append に変更！
-                    partsList.append(DraftPart(name: searchText, equipment: selectedCustomEquipment, weight: 20, reps: 10, sets: 3))
-                    searchText = ""
-                }} label: {
-                    Text("INSTALL NEW PART").font(.headline.bold()).foregroundColor(.black).frame(maxWidth: .infinity).padding().background(Color.yellow).clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-            }.padding().background(Color(red: 0.15, green: 0.15, blue: 0.15)).clipShape(RoundedRectangle(cornerRadius: 12)).overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.yellow, style: StrokeStyle(lineWidth: 2, dash: [6])))
-        }
-    
-    
     // MARK: - その他ヘルパー
-    
+
     private func dashboardValue(value: String, unit: String) -> some View {
         HStack(alignment: .lastTextBaseline, spacing: 2) {
             Text(value).font(.system(size: 14, weight: .black, design: .monospaced)).foregroundColor(activeNeonColor)
@@ -469,6 +334,37 @@ struct RoutineBuilderView: View {
         }
     }
 
+    // 💥 追加：公開設定セクション
+    private var visibilitySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("VISIBILITY").font(.system(size: 14, weight: .black, design: .rounded)).foregroundColor(.gray)
+            
+            HStack {
+                Image(systemName: isPublic ? "globe" : "lock.fill")
+                    .foregroundColor(isPublic ? .green : .orange)
+                    .font(.title3)
+                
+                VStack(alignment: .leading) {
+                    Text(isPublic ? "PUBLIC (Shared with Drivers)" : "PRIVATE (Only for You)")
+                        .font(.system(.subheadline, design: .rounded).weight(.bold))
+                        .foregroundColor(.white)
+                    Text(isPublic ? "他のドライバーがこのメニューを見つけてインポートできるようになります" : "自分だけがこのメニューを使用できます")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+                
+                Toggle("", isOn: $isPublic)
+                    .toggleStyle(SwitchToggleStyle(tint: .green))
+                    .labelsHidden()
+            }
+            .padding()
+            .background(Color(red: 0.15, green: 0.15, blue: 0.15))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+    }
+
     private var installButtonSection: some View {
             VStack {
                 Button {
@@ -478,14 +374,14 @@ struct RoutineBuilderView: View {
                     
                     // 🏎️ 2. パーツの組み立て処理（DraftPart -> RoutineExercise）
                     // .enumerated() を使って、リストの「順番（index）」も一緒に取得して orderIndex にセットします
-                    let convertedExercises = partsList.enumerated().map { (index, draftPart) -> RoutineExercise in
+                    let convertedExercises = partsList.enumerated().map { (index, draft) -> RoutineExercise in
                         return RoutineExercise(
-                            name: draftPart.name,
-                            target: "その他", // DraftPartには部位情報がないので一旦「その他」で固定
-                            equipment: draftPart.equipment,
-                            baseWeight: draftPart.weight,
-                            baseReps: draftPart.reps,
-                            sets: draftPart.sets,
+                            name: draft.master.name,
+                            target: draft.master.target.rawValue,
+                            equipment: draft.master.equipment.rawValue,
+                            baseWeight: draft.weight,
+                            baseReps: draft.reps,
+                            sets: draft.sets,
                             orderIndex: index // 👈 ここで順番をバッチリ記憶！
                         )
                     }
@@ -495,16 +391,30 @@ struct RoutineBuilderView: View {
                         // 編集モード：既存のルーティンを上書き
                         existing.title = routineName
                         existing.themeColor = selectedColor
+                        existing.isPublic = isPublic // 💥 追加
+                        existing.ownerName = myDriverName // 💥 追加
                         
                         // 既存の種目を一旦クリアしてから新しいリストを入れる（重複防止）
                         existing.exercises.removeAll()
                         existing.exercises = convertedExercises
                         
+                        // 💥 追加：Firebase同期
+                        if isPublic {
+                            FirebaseManager.shared.uploadWorkoutRoutine(existing)
+                        } else {
+                            FirebaseManager.shared.deleteWorkoutRoutine(existing)
+                        }
+                        
                     } else {
                         // 新規作成モード：新しいルーティンを作成
-                        let newRoutine = WorkoutRoutine(title: routineName, themeColor: selectedColor)
+                        let newRoutine = WorkoutRoutine(title: routineName, themeColor: selectedColor, ownerName: myDriverName, isPublic: isPublic)
                         newRoutine.exercises = convertedExercises
                         context.insert(newRoutine) // データベースに登録
+                        
+                        // 💥 追加：Firebase同期
+                        if isPublic {
+                            FirebaseManager.shared.uploadWorkoutRoutine(newRoutine)
+                        }
                     }
                     
                     // 4. ガレージを出る（メニュー画面に戻る）

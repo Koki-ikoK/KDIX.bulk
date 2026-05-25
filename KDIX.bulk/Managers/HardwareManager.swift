@@ -28,6 +28,7 @@ class HardwareManager {
     
     // 💥 画面の処理（ジェスチャー）を邪魔しないよう、非同期で安全に鳴らす！
     func playSelection() {
+        guard AppSettings.shared.isHapticEnabled else { return }
         DispatchQueue.main.async {
             self.selectionGen?.selectionChanged()
             self.selectionGen?.prepare()
@@ -35,6 +36,7 @@ class HardwareManager {
     }
     
     func playHeavy() {
+        guard AppSettings.shared.isHapticEnabled else { return }
         DispatchQueue.main.async {
             self.heavyGen?.impactOccurred(intensity: 1.0)
             self.heavyGen?.prepare()
@@ -42,6 +44,7 @@ class HardwareManager {
     }
     
     func playMedium() {
+        guard AppSettings.shared.isHapticEnabled else { return }
         DispatchQueue.main.async {
             self.mediumGen?.impactOccurred()
             self.mediumGen?.prepare()
@@ -49,6 +52,7 @@ class HardwareManager {
     }
     
     func playRigid() {
+        guard AppSettings.shared.isHapticEnabled else { return }
         DispatchQueue.main.async {
             self.rigidGen?.impactOccurred()
             self.rigidGen?.prepare()

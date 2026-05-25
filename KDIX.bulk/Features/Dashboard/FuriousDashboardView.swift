@@ -1,17 +1,21 @@
 import SwiftUI
 
-// MARK: - ワイスピ風 ダッシュボード (SE対応 ユニバーサルサイズ)
+// MARK: - 🏎️ Garage用：ワイスピ風 ダッシュボード (Safety Car Edition)
 struct FuriousDashboardView: View {
     var currentStreak: Int = 12
     var totalVolume: Int = 34500
-    var nosCount: Int = 2
-    var onNosTapped: () -> Void = {}
-    
+    var shieldCount: Int = 2
+    var onShieldTapped: () -> Void = {}
+    var onStartWorkout: () -> Void = {}
+
     var body: some View {
         VStack(spacing: 20) {
-            SpeedometerGauge(volume: totalVolume)
-                .frame(maxWidth: .infinity)
-            
+            Button(action: onStartWorkout) {
+                SpeedometerGauge(volume: totalVolume)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+
             HStack(alignment: .bottom, spacing: 0) {
                 TachometerGauge(streak: currentStreak)
                     .padding(.leading, 10)
@@ -19,23 +23,23 @@ struct FuriousDashboardView: View {
                 Spacer()
                 
                 VStack(spacing: 8) {
-                    Text("N2O SYSTEM")
+                    Text("SAFETY CAR")
                         .font(.system(size: 12, weight: .black, design: .rounded))
-                        .foregroundColor(nosCount > 0 ? .cyan : .gray)
-                        .shadow(color: .cyan.opacity(nosCount > 0 ? 0.8 : 0), radius: 5)
+                        .foregroundColor(shieldCount > 0 ? .yellow : .gray)
+                        .shadow(color: .yellow.opacity(shieldCount > 0 ? 0.8 : 0), radius: 5)
                     
                     HStack(spacing: 12) {
-                        Text("\(nosCount)")
+                        Text("\(shieldCount)")
                             .font(.system(size: 32, weight: .black, design: .monospaced))
-                            .foregroundColor(nosCount > 0 ? .cyan : .gray)
-                            .shadow(color: .cyan.opacity(nosCount > 0 ? 0.8 : 0), radius: 8, x: 0, y: 0)
+                            .foregroundColor(shieldCount > 0 ? .yellow : .gray)
+                            .shadow(color: .yellow.opacity(shieldCount > 0 ? 0.8 : 0), radius: 8, x: 0, y: 0)
                         
                         Button(action: {
                             let impact = UIImpactFeedbackGenerator(style: .heavy)
                             impact.impactOccurred()
-                            onNosTapped()
+                            onShieldTapped()
                         }) {
-                            TwinNOSBottles(isCharged: nosCount > 0)
+                            SafetyCarIcon(isCharged: shieldCount > 0)
                         }
                         .buttonStyle(.plain)
                     }
@@ -118,37 +122,24 @@ struct Needle: View {
     }
 }
 
-// MARK: - NOSボトル（最適化サイズ）
-struct TwinNOSBottles: View {
+// MARK: - 🏎️ SafetyCarIcon
+struct SafetyCarIcon: View {
     var isCharged: Bool
-    @State private var phase: CGFloat = 0
     var body: some View {
-        ZStack(alignment: .top) {
+        ZStack {
+            Image(systemName: "shield.lefthalf.filled")
+                .font(.system(size: 24))
+                .foregroundColor(isCharged ? .yellow : .gray)
             if isCharged {
-                ForEach(0..<8, id: \.self) { i in
-                    Circle().fill(Color.white.opacity(0.4)).frame(width: 16, height: 16).blur(radius: 6)
-                        .offset(x: i % 2 == 0 ? -10 : 10, y: -20 - (phase * CGFloat(i * 3 + 12))).opacity(1.0 - Double(phase))
-                        .animation(Animation.linear(duration: 1.5).repeatForever(autoreverses: false).delay(Double(i) * 0.2), value: phase)
-                }
+                Image(systemName: "car.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(.black)
+                    .offset(y: 2)
             }
-            HStack(spacing: 2) { SingleNOSBottle(); SingleNOSBottle() }
-            VStack(spacing: 28) {
-                Rectangle().fill(LinearGradient(colors: [.gray, .white, .gray], startPoint: .top, endPoint: .bottom)).frame(width: 52, height: 4).shadow(color: .black.opacity(0.5), radius: 1, y: 1)
-                Rectangle().fill(LinearGradient(colors: [.gray, .white, .gray], startPoint: .top, endPoint: .bottom)).frame(width: 52, height: 4).shadow(color: .black.opacity(0.5), radius: 1, y: 1)
-            }.offset(y: 25)
         }
-        .frame(height: 70)
-        .onAppear { if isCharged { phase = 1.0 } }
-        .onChange(of: isCharged) { _, newValue in phase = newValue ? 1.0 : 0.0 }
+        .frame(width: 40, height: 40)
+        .background(isCharged ? Color.yellow.opacity(0.2) : Color.white.opacity(0.05))
+        .clipShape(Circle())
     }
 }
 
-struct SingleNOSBottle: View {
-    var body: some View {
-        ZStack {
-            Capsule().fill(LinearGradient(colors: [Color(red: 0.0, green: 0.2, blue: 0.6), .cyan, Color(red: 0.0, green: 0.3, blue: 0.8), Color(red: 0.0, green: 0.1, blue: 0.4)], startPoint: .leading, endPoint: .trailing)).frame(width: 24, height: 70).shadow(color: .cyan.opacity(0.3), radius: 4, x: 0, y: 0)
-            RoundedRectangle(cornerRadius: 3).fill(Color.orange).frame(width: 18, height: 24).overlay(VStack(spacing: 0) { Text("NOS").font(.system(size: 5, weight: .black, design: .rounded)).foregroundColor(.white).italic(); Rectangle().fill(Color.white).frame(height: 0.5).padding(.horizontal, 2) }).offset(y: -6)
-            VStack(spacing: 0) { Rectangle().fill(LinearGradient(colors: [.gray, .white, .gray], startPoint: .leading, endPoint: .trailing)).frame(width: 6, height: 6); Rectangle().fill(Color.gray).frame(width: 10, height: 3) }.offset(y: -38)
-        }
-    }
-}
